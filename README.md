@@ -52,7 +52,9 @@ This is the main window with 4 sections.
 
 
 The Image-Tagger Tagger tab
-![Capture_Tagger2_002](https://github.com/user-attachments/assets/9a69084c-1f2d-443c-a4b1-e93213bb6fc7)
+![Capture_Tagger2_002](https://github.com/user-attachments/assets/c2cc3fd4-cbb2-413a-b721-87c6ab9b5594)
+
+
 
 * The Reader tab
   * Show the active file
