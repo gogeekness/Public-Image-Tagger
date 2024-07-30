@@ -10,7 +10,7 @@ else:
     import PySimpleGUI27 as sg
 from PIL import Image, ImageTk
 import piexif
-from Image_Tager_List import TaggerList, SpecialList
+from TagMasterLightList import TaggerList, SpecialList
 
 import os
 import io
@@ -56,12 +56,12 @@ DirHold = False
 ### Get the folder containin:g the images from the user
 sg.theme('Dark Red')
 
-ImagePath = 'R:/images/Fresh Images/'  # inital value, can be overidden  
+ImagePath = 'C:/user/Images/'  # inital value, can be overidden  
 try: 
     flist0 = os.listdir(ImagePath)
 except FileNotFoundError:
     # if no default, pop up windows to get starting dir, default not needed abandon in place
-    ImagePath = sg.PopupGetFolder('Image folder to open', default_path='R:/images/Fresh Images/', )
+    ImagePath = sg.PopupGetFolder('Image folder to open', default_path='C:/user/Images/', )
     Browsed = True
     try: 
         flist0 = os.listdir(ImagePath)  # get list of files in new folder
