@@ -5,9 +5,17 @@ This Application uses a simple GUI to change the meta-tags for JPG images.
 These tags are embedded into the image.
 
 Requirements:
-* Python runtime (3.8+), io, os
-* PySimpleGUI 
-* (Windows?)
+* `import sys, os, io`
+* A check for versioning in PySimple Gui whem importing
+```
+  if sys.version_info[0] >= 3:
+      import PySimpleGUI as sg
+  else:
+      import PySimpleGUI27 as sg
+```
+* `from PIL import Image, ImageTk`
+* `import piexif`
+* `from TagMasterLightList import TaggerList, SpecialList (your own data file)`
 
 
 The goal of this application is to quickly read and update JPG images with their built-in meta-tags.  The app will read a directory of files (images). 
