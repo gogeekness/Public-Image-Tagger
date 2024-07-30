@@ -10,7 +10,7 @@ else:
     import PySimpleGUI27 as sg
 from PIL import Image, ImageTk
 import piexif
-from TagMasterLightList import TaggerList, SpecialList
+from Image_Tager_List import TaggerList, SpecialList
 
 import os
 import io
@@ -44,21 +44,23 @@ KeyStr = "XPKeywords"
 exifDataRaw = {}
 ExtRating = 0  # temporary value
 image_idx = 1 # default start of impage index
-#RadTag = 'RAD0'
+
+# Directory Tags
+DirTags = set()
+DirHold = False
+
+
+#### ----------------------------------------------------------------------------------------------------
+#### Inital starting proccess to setup needed variables and values
 
 ### Get the folder containin:g the images from the user
 sg.theme('Dark Red')
 
-# ImagePath = sg.PopupGetFolder('Image folder to open', default_path='R:/images/Fresh Images/')
-
-ImagePath = 'R:/images/Fresh Images/'
-#### get list of files in folder
-    
-### is the default directory there?
+ImagePath = 'R:/images/Fresh Images/'  # inital value, can be overidden  
 try: 
     flist0 = os.listdir(ImagePath)
 except FileNotFoundError:
-    # if no default, pop up windows to get starting dir
+    # if no default, pop up windows to get starting dir, default not needed abandon in place
     ImagePath = sg.PopupGetFolder('Image folder to open', default_path='R:/images/Fresh Images/', )
     Browsed = True
     try: 
@@ -68,7 +70,7 @@ except FileNotFoundError:
         raise SystemExit()    
     
 #### PIL supported image types
-img_types = ("jpg", "jpeg")
+img_types = ("jpg", "jpeg", 'tiff')
 
 #### create sub list of image files (no sub folders, no wrong file types)
 Filenames = [f for f in flist0 if os.path.isfile(os.path.join(ImagePath, f)) and f.lower().endswith(img_types)]
@@ -80,34 +82,17 @@ if num_files == 0:
     sg.Popup('No files in folder ', ImagePath)
     raise SystemExit()
 
-del flist0   # no longer needed
-
-ImagePath = 'R:/images/Fresh Images/'
-#### get list of files in folder
-    
-    
-#### Functions =================================================    
-####    
-#### Initial setup.
-    
-### Inital look directory, is the default directory there?
-try: 
-    flist0 = os.listdir(ImagePath)
-except FileNotFoundError:
-    # if no default, pop up windows to get starting dir
-    ImagePath = sg.PopupGetFolder('Image folder to open', default_path='R:/images/Fresh Images/', )
-    Browsed = True
-    try: 
-        flist0 = os.listdir(ImagePath)  # get list of files in new folder
-    except FileNotFoundError:  #  if the 2nd time, then fail out 
-        sg.Popup('No files in folder ', ImagePath)
-        raise SystemExit()    
-
 ## split the list of tags equally into 4 sub-columns
 def Split_tags(Taglists):
     ListInterval = len(TaggerList)//4
     rem = len(TaggerList) % 4
-        
+    
+    ## set each string in Tagger list to only 30 chars, padding or cut where needed.
+    # for idx, Taggros in enumerate(TaggerList):
+    #      TaggerList[idx] = Taggros.ljust(30)[:30]
+
+    
+    ## Split the list into 4 equal parts     
     TagColLists = [TaggerList[i * ListInterval + min(i, rem):(i + 1) * ListInterval + min(i + 1, rem)] for i in range(4)] 
     Tags1 = TaggerList[:ListInterval]
     Tags2 = TaggerList[ListInterval:ListInterval*2-1]
@@ -167,13 +152,20 @@ def PullTags(pathname, filename):
 ##  Get the file list and then iterate over each file fetching the tags
 ##  Append the list wiht the tags from the file         
 def PullDirTags(pathname):
-    global exifDataRaw
+    global exifDataRaw, DirHold, DirTags
     DirList = get_file_list(pathname)
     ## For progress bar 0 to 100
-    DirIncrament = 1/((len(DirList) -1) / 100)
-    DirProgress = 0.0
-    DirTags = set()
+    
+    ## Is there any files 
+    if len(DirList) < 1:
+        return []
 
+    DirIncrament = 1/(len(DirList) / 100)
+    DirProgress = 0
+    
+    if not DirHold:
+        DirTags = set()     
+    
     for DirFileName in DirList[:-1]:
         DirProgress += DirIncrament
         try:     
@@ -189,7 +181,8 @@ def PullDirTags(pathname):
             print("Error File : ", DirFileName)
             print("Error no : ", Nullth, "Data:", exifDataRaw)
             print("Dump 0th : ", piexif.dump(BlankTag))
-            # return list from the set      
+            # return list from the set   
+    window['PBAR'].update(current_count=0)   
     return list(DirTags)
     
 ### Push the changes to the metatags to the image
@@ -313,21 +306,18 @@ Tag_List_Frame = [[sg.Frame('Tag List', [[
 ##      Base command buttons for files and tag buttons
 TagButtons = [sg.Button(('Save Image'), size=(10, 2)), sg.Button(('Clear Boxes'), size= (10, 2)), sg.Button(('Hold Boxes'), size= (10, 2))]
 
-##      Display the specialty tags
-ProperList = [sg.Listbox(values=SpecialList, size=(30, 10), key='proplist', select_mode="LISTBOX_SELECT_MODE_SINGLE",
-                         enable_events=True)]
-
 ##      Tag Button section
 ##      Contains the speciallized tags.
-BoxListButtons = [[sg.Button(('Add Tag'), size=(8, 2)), sg.Button(('Clear Tag'), size=(8, 2)), sg.Checkbox(('Special Tag\nSelected'), key='TagSpecial', default=False, size=(12,12))]]
+BoxListButtons = [[sg.Button(('Add Tag'), size=(8, 2)), sg.Button(('Clear Tag'), size=(8, 2))], 
+                  [sg.Checkbox(('Special Tag\nSelected'), key='TagSpecial', default=False, size=(12,12))]]
 
 file_num_display_elem = sg.Text('File 1 of {}'.format(num_files),)
 ##      Display list of the image files in this directory
 ##      + control buttons and checkbox for hold 
 col_files = [[sg.Listbox(values=Filenames, change_submits=True, size=(40, 40), key='listbox')], 
              [sg.Text(str(str(image_idx + 1) + ' of '), key='FileNumIndex'), sg.Text(str(str(num_files)),  size=(20,1), key = 'DirFileTotal') ],  
-             [sg.Button(('Save Image'), size=(10, 2)) ], 
-                ProperList, [sg.Column(BoxListButtons)]]
+             [sg.Button(('Save Image'), size=(10, 2)) ] 
+            ]
 
 
 ###     Image and < > buttons
@@ -360,34 +350,35 @@ tab1_taglists = [[sg.Text('Main Tab')],
             sg.Radio('Star 2', "RadStr", size=(7, 1), key='RAD2'),
             sg.Radio('Star 1', "RadStr", size=(7, 1), key='RAD1'),
             sg.Radio('No Star', "RadStr", size=(7, 1), key='RAD0', default=True)],
-        [sg.Button(('Clear\nBoxes'), size=(6, 2)), sg.Button(('Hold\nBoxes'), size=(6, 2)), sg.Checkbox(('Boxes\nHeld'), key='TagHold', default=False, size=(12,12))]     
+        [sg.Button(('Clear\nBoxes'), size=(6, 2),key='Clear Boxes'), sg.Button(('Hold\nBoxes'), size=(6, 2), key='Hold Boxes'), sg.Checkbox(('Boxes\nHeld'), key='TagHold', default=False, size=(12,12))], 
+        [sg.HorizontalSeparator()],
+        [sg.Listbox(values=SpecialList, size=(30, 8), key='proplist', select_mode="LISTBOX_SELECT_MODE_SINGLE", enable_events=True), 
+         sg.Column(BoxListButtons) ]     
     ]   
-   
-# tab1_layout = [[sg.Text('This is inside tab 1', background_color='darkslateblue', text_color='white')],
-#                [sg.Input(key='-in0-')]]
-   
+
+###     Tab #1 (Directory Reader)
 tab2_reader = [
         [sg.Text('Reader Tab')],
         [sg.Text(str('File :' +  filename), size=(80,1), key='ReaderTextTag')],
         [sg.Text('Tags:', size=(15, 4)),
         sg.Text(str(PullTags(ImagePath, Filenames[0])), enable_events=True, text_color = 'Black', background_color = 'White', key = 'single_tag_reader', 
                 size=(60, 4), border_width = 2, justification = 'left')],
-        [sg.Button(('Tag Directory'), size=(12, 2), key='DirectoryTag')],
+        [sg.HorizontalSeparator()],
+        [sg.Button(('Tag Directory'), size=(12, 2), key='DirectoryTag'), sg.Button(('Hold Directory Tags'), size=(16, 2), key='HoldDirectoryTag'), 
+         sg.Button(('Clear Directory Directory'), size=(12, 2), key='DirectoryTagClear'), sg.Checkbox(('Tags\nHeld'), key='DirTagHold', default=False, size=(12,12))],
         [sg.Text('Directory Tags:', size=(15, 4)), 
          sg.Multiline(str(""), enable_events=True, text_color = 'Black', background_color = 'White', key = 'DirTagsBox', size=(67, 20), border_width = 2, justification = 'left')],
-        [sg.Text('Directory Progress :', size=(15, 4)), sg.ProgressBar(100, orientation='h', expand_x=True, size=(60, 10),  key='PBAR')]
-        
+        [sg.Text('Directory Progress :', size=(15, 4)), sg.ProgressBar(100, orientation='h', expand_x=True, size=(60, 10),  key='PBAR')] 
     ]
-    #   Bottom of window
-    #   Radio buttons
 
+### Main layout for Tab-grouping
+##
 tab_group = [[sg.TabGroup([[
     sg.Tab('Tag Lists', tab1_taglists), 
     sg.Tab('Reader Control',tab2_reader)
         ]], border_width=2)       
     ]]
 
-#### =========================================================================================
 ###     Tab #2 layout
 layout = [
     ## Title and top controls bar
@@ -400,7 +391,7 @@ layout = [
       # file list and controls    
 ]
 
-### Main ===============================================
+### Main ========================================================================================
 ##
 ##
 def main():
@@ -411,7 +402,7 @@ def main():
     HoldList = []
 
 
-    global ImagePath, Filenames, window, values, ProperListNames, Browsed, image_idx
+    global ImagePath, Filenames, window, values, ProperListNames, Browsed, image_idx, DirHold, num_files
     NewDirPath = ImagePath  ## set for default
     Browsed = False
 
@@ -425,11 +416,11 @@ def main():
         event, values = window.read()
         Filenames = get_file_list(ImagePath)
 
-### Input events (cursour keys, mouse wheel, and < > buttons)
-##
         if event is None:
             ## nothing to do
             break
+    
+### Commit to new directory
         elif event == 'Go':
             ImagePath = values[0]  # get browse str
             image_idx = 0          # set to 0 for new dir
@@ -440,7 +431,7 @@ def main():
             num_files = len(Filenames)
             Browsed = False
             ImageTagsClear()
-            
+
         elif event == 'BrowseDir':
             ImagePath = values[0]  # get browse str
             image_idx = 0          # set to 0 for new dir
@@ -450,7 +441,9 @@ def main():
             Browsed = False
             ImageTagsClear()
             
-        
+### Input events (cursour keys, mouse wheel, and < > buttons)
+##  
+### Mouse and control buttons         
         elif event in ('>', 'MouseWheel:Down', 'Down:40', 'Next:34') and image_idx < (num_files-1):
             ## if > or change image file then change the image index by adding 1
             image_idx += 1
@@ -463,6 +456,8 @@ def main():
             filename = Filenames[image_idx]
             if not Hold:
                 ImageTagsClear()
+                
+### Mouse select for the file list box
         elif event == 'listbox':
             imagef = values["listbox"][0]
             ImageName = os.path.join(ImagePath, imagef)   ## get new image fileaname
@@ -471,22 +466,11 @@ def main():
             if not Hold:
                 ImageTagsClear()
 
-### Browse Dir change and update taking the opened directory and applying to the program.
-##
-        # elif event == 'Go' or ImagePath != NewDirPath:
-        #     ImagePath = values[0]  # get browse str
-        #     image_idx = 0          # set to 0 for new dir
-        #     Filenames = get_file_list(ImagePath)
-        #     window.Element('listbox').Update(Filenames)
-        #     NewDirPath = ImagePath
-        #     ImageTagsClear()
 
 ### Hold the tages and add them to the tags from the new image
 ##  To allow tagging of simular images much quicker
 ##
-        elif event == 'DirectoryTag':            
-            window.Element('DirTagsBox').update(PullDirTags(ImagePath))
-
+### Hold for tagging each image
         elif event == 'Hold Boxes':
             Hold = True
             if len(HoldList) > len(TaggerList):
@@ -497,10 +481,39 @@ def main():
                 window.Element('TagHold').Update(value=True)
             except IndexError:
                 print("No tag selected.")
+                
+### Release hold update chcekbox
         elif event == 'Clear Boxes':
             Hold = False
             HoldList = []
+            window.Element('TagHold').Update(value=False)
             ImageTagsClear()
+
+
+### Hold the directory tags and add them for the next directory.
+##  To allow build a list for many directories
+##
+        elif event == 'DirectoryTag':            
+            window.Element('DirTagsBox').update(PullDirTags(ImagePath))
+        
+### Hold to append the directory string      
+        elif event == 'HoldDirectoryTag':
+            DirHold = True
+            try:
+                window.Element('DirTagHold').Update(value=True)
+            except IndexError:
+                print("No tag selected.")
+
+### Release the append hold
+        elif event == 'DirectoryTagClear':    
+            DirHold = False   
+            try:
+                window.Element('DirTagHold').Update(value=False)
+            except IndexError:
+                print("No tag selected.")                        
+
+
+### Save file (Update image with new tags)            
         elif event == 'Save Image':
             PushTags(ImagePath, Filenames[image_idx], ListTag)
         elif event == 'Add Tag':
@@ -510,15 +523,19 @@ def main():
                 window.Element('TagSpecial').Update(value=True)
             except IndexError:
                 print("No special tag selected.")
+                
+### Clear the selected tags from the main tabgroup
         elif event == 'Clear Tag':
             window.Element('TagSpecial').Update(value=False)
             ListTag = ""
+            
+### Exit the application 
         elif event == 'Exit':
             Running = False
         else:
             pass
-            
-     
+        
+### ================================================================================================
 ### Update image if needed
         ShowImageTags(PullTags(ImagePath, Filenames[image_idx]))
         ImageName = os.path.join(ImagePath, Filenames[image_idx])
@@ -526,12 +543,22 @@ def main():
         
         window.Element('upWidth').update(ImgWidth)
         window.Element('upHeight').update(ImgHeight)
-        window.Element('TextTag').Update(PullTags(ImagePath, Filenames[image_idx]))
-        window.Element('FileNameLabel').update(filename)
-        window.Element('ReaderTextTag').update('File :' +  filename)
+        window.Element('TextTag').Update(PullTags(ImagePath, Filenames[image_idx]))    
         window.Element('single_tag_reader').update(PullTags(ImagePath, Filenames[image_idx]))
         window.Element('DirFileTotal').update(len(Filenames))
         window.Element('FileNumIndex').update(str( image_idx ) + ' of ')
+        
+        ## Edge case if exiting with out doing anything
+        # Is filename defined, then add blank. (The update will show 'blank' on exit)
+        try:
+            window.Element('FileNameLabel').update(filename)
+        except UnboundLocalError:
+            window.Element('FileNameLabel').update('Blank')
+        # Is filename for tag read defined, then add blank.            
+        try:
+            window.Element('ReaderTextTag').update('File :' +  filename)
+        except UnboundLocalError:
+            window.Element('ReaderTextTag').update('File :' +  str('Blank'))
 
 ### Update Rating Radio buttons
         ExtRating = PullRating(ImagePath, Filenames[image_idx])
