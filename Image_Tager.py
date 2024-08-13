@@ -3,22 +3,20 @@
 # tagger for my images
 # Richard Eseke 2020, 2024
 
-import sys
+import sys, os
 if sys.version_info[0] >= 3:
     import PySimpleGUI as sg
 else:
     import PySimpleGUI27 as sg
-from PIL import Image, ImageTk
-import piexif
-from TagMasterLightList import TaggerList, SpecialList
 
-import os
-import io
+from InitVars import ImageSize, radio_list, img_types, ImgWidth, ImgHeight
+from Image_Tager_List import TaggerList, SpecialList
+
+from EventFuctions import  SplitTags, GetFileList, GetImgData, PullTags, PullDirTags, PushTags, ShowImageTags, ImageTagsClear, CheckBoxButton, GetRadio, PullRating
+
 
 #### Global Var Lists
-menu_def = [['&File', ['&Open', '&Save', 'E&xit', 'Properties']],
-            ['&Help', '&About...'], ]
-radio_list = ['RAD0', 'RAD1', 'RAD2', 'RAD3', 'RAD4', 'RAD5']
+
 
 ### Sorting Tag list alphebetacaly
 TaggerList.sort()
@@ -26,51 +24,36 @@ TaggerList.append("<end>")
 SpecialList.sort()
 
 BaseTag = Filenames = []
-ImageSize = (640,800) #(1440, 920)
 
-## ExIF keys for JPEG images 
-KeyValue = 40094    #  ExIF key for KeyWords in Windows
-KeyRating = 18246   #  ExIF key for rating in Windows
-PerRating = 18249   #  ExIF Percentage rating
-ImageWxif = 256     #  ExIF key for image width
-ImageHxif = 257     #  ExIF key for image hight
-BlankTag = {'0th': {18246: 0, 18249: 0, 40094: (65, 0)}, 'Exif': {}, 'GPS': {}, 'Interop': {}, '1st': {}, 'thumbnail': None}
-
-## Starting ExIF vaules
-ImgHeight = 0
-ImgWidth = 0
-Nullth = '0th'
 KeyStr = "XPKeywords"
 exifDataRaw = {}
 ExtRating = 0  # temporary value
 image_idx = 1 # default start of impage index
+numsplits = 6
 
 # Directory Tags
 DirTags = set()
-DirHold = False
 
 
 #### ----------------------------------------------------------------------------------------------------
 #### Inital starting proccess to setup needed variables and values
 
-### Get the folder containin:g the images from the user
 sg.theme('Dark Red')
+### Get the folder containin:g the images from the user
 
-ImagePath = 'C:/user/Images/'  # inital value, can be overidden  
+ImagePath = 'R:/images/Fresh Images/'  # inital value, can be overidden  
 try: 
     flist0 = os.listdir(ImagePath)
 except FileNotFoundError:
     # if no default, pop up windows to get starting dir, default not needed abandon in place
-    ImagePath = sg.PopupGetFolder('Image folder to open', default_path='C:/user/Images/', )
+    ImagePath = sg.PopupGetFolder('Image folder to open', default_path='R:/images/Fresh Images/', )
     Browsed = True
     try: 
         flist0 = os.listdir(ImagePath)  # get list of files in new folder
     except FileNotFoundError:  #  if the 2nd time, then fail out 
         sg.Popup('No files in folder ', ImagePath)
         raise SystemExit()    
-    
-#### PIL supported image types
-img_types = ("jpg", "jpeg", 'tiff')
+
 
 #### create sub list of image files (no sub folders, no wrong file types)
 Filenames = [f for f in flist0 if os.path.isfile(os.path.join(ImagePath, f)) and f.lower().endswith(img_types)]
@@ -82,195 +65,6 @@ if num_files == 0:
     sg.Popup('No files in folder ', ImagePath)
     raise SystemExit()
 
-## split the list of tags equally into 4 sub-columns
-def Split_tags(Taglists):
-    ListInterval = len(TaggerList)//4
-    rem = len(TaggerList) % 4
-    
-    ## set each string in Tagger list to only 30 chars, padding or cut where needed.
-    # for idx, Taggros in enumerate(TaggerList):
-    #      TaggerList[idx] = Taggros.ljust(30)[:30]
-
-    
-    ## Split the list into 4 equal parts     
-    TagColLists = [TaggerList[i * ListInterval + min(i, rem):(i + 1) * ListInterval + min(i + 1, rem)] for i in range(4)] 
-    Tags1 = TaggerList[:ListInterval]
-    Tags2 = TaggerList[ListInterval:ListInterval*2-1]
-    Tags3 = TaggerList[ListInterval*2:ListInterval*3-1]
-    Tags4 = TaggerList[ListInterval*3:-1]
-    return TagColLists
-
-
-
-#### Event functions =====================================================================================
-###  
-
-def get_file_list(ImagePath):
-    FileList = os.listdir(ImagePath)
-    LocFilenames = [f for f in FileList if os.path.isfile(os.path.join(ImagePath, f)) and f.lower().endswith(img_types)]
-    return LocFilenames
-
-## Get image data from file and set for image pane in the application window
-def get_img_data(f, maxsize = ImageSize, first = False):
-    global ImgWidth, ImgHeight
-    try:
-        img = Image.open(f)
-        ImgWidth, ImgHeight = img.size
-        img.thumbnail(maxsize)
-    except OSError:
-        print("OS Error", OSError, "  First ", first)
-        return None
-    ## need to active and set image for the first time
-    if first:                     # tkinter is inactive the first time
-        bio = io.BytesIO()
-        img.save(bio, format = "PNG")
-        del img
-        return bio.getvalue()
-    return ImageTk.PhotoImage(img)
-
-### Fetch and Push TAGS
-
-### Fetch the metatags from the image file.
-##  The processes the binary data from specific keys (for Windows) and fetches the values.
-##  Add those values to a str to be returned
-def PullTags(pathname, filename):
-    global exifDataRaw
-    try:
-        exifDataRaw = piexif.load(pathname + '\\' + filename) 
-        if exifDataRaw[Nullth]:
-            if KeyValue in exifDataRaw[Nullth]:
-                TagOutput = str(bytes(exifDataRaw[Nullth][KeyValue]).decode('utf_16_le'))#[:-1]
-                return str(TagOutput)
-    except ValueError:
-        print("Error no", Nullth, "Data:", exifDataRaw)
-        print("Dump 0th:", piexif.dump(BlankTag))
-        piexif.insert(piexif.dump(BlankTag), pathname + '\\' + filename)
-        return ""
-    return ""
-        
-### Fetch all of the tags in a directory.
-##  Get the file list and then iterate over each file fetching the tags
-##  Append the list wiht the tags from the file         
-def PullDirTags(pathname):
-    global exifDataRaw, DirHold, DirTags
-    DirList = get_file_list(pathname)
-    ## For progress bar 0 to 100
-    
-    ## Is there any files 
-    if len(DirList) < 1:
-        return []
-
-    DirIncrament = 1/(len(DirList) / 100)
-    DirProgress = 0
-    
-    if not DirHold:
-        DirTags = set()     
-    
-    for DirFileName in DirList[:-1]:
-        DirProgress += DirIncrament
-        try:     
-                DirFileTags = PullTags(pathname, DirFileName)
-                for tag in DirFileTags.split(';'):      # The file meta-tags are sperated by ; 
-                    cleaned_tag = tag.rstrip('\x00')    # Removing '\x00' if it exists, a side effect of the decodeing exif-data
-                    DirTags.add(cleaned_tag)
-                    if cleaned_tag not in DirTags:      # Test for uniqueness, if so add to maine Directory Tag List
-                        DirTags.append(cleaned_tag)
-                # DirTags.append(DirFileTags)
-                window['PBAR'].update(current_count=int(DirProgress))
-        except ValueError:
-            print("Error File : ", DirFileName)
-            print("Error no : ", Nullth, "Data:", exifDataRaw)
-            print("Dump 0th : ", piexif.dump(BlankTag))
-            # return list from the set   
-    window['PBAR'].update(current_count=0)   
-    return list(DirTags)
-    
-### Push the changes to the metatags to the image
-##  The reverse. Convert the str to binary data and insert the new data to the image 
-def PushTags(pathname, filename, ListTag):
-    InsertString = ""
-    global exifDataRaw
-    for Tag in TaggerList[:-1]:
-        if values[Tag]:
-            InsertString = InsertString + Tag + ";"
-    InsertString = ListTag + InsertString
-    print("Push string", InsertString)
-    #Get whole dataset
-    print("Missing ", Nullth, "Data:", exifDataRaw)
-    if exifDataRaw:
-        exifDataRaw[Nullth][KeyValue] = tuple(InsertString[:-1].encode('utf_16_le'))
-        exifDataRaw[Nullth][KeyRating] = GetRadio()
-        exifDataRaw[Nullth][PerRating] = 20 * GetRadio()
-        try:
-            ByteExif = piexif.dump(exifDataRaw)
-            piexif.insert(ByteExif, pathname + '\\' + filename)
-        except Exception:
-            print("Error Data not JPG can not save EXIF data")
-    else:
-        print("No Exif Data")
-
-### print out the tages as a text box below the file 
-def ShowImageTags(TagStr):
-    InterList = []
-    global window
-    if TagStr != None:
-            for Tag in TaggerList:
-                if str(Tag) in TagStr:
-                    InterList.append(str(Tag))
-                    window.Element(str(Tag)).Update(value=True)
-
-### On image change clear the tags str
-def ImageTagsClear():
-    for Tag in TaggerList[:-1]:
-        try:
-            window.Element(str(Tag)).Update(value=False)
-        except KeyError:
-            print("No Key found :", Tag)
-
-### Sent the state of the check box back the main loop.
-def CheckBoxButton(BoxText):
-    return sg.Checkbox(BoxText, size=(11, 1), default=False, key=(BoxText))
-
-### STARS/RATING  
-  
-### Fetch the star rating for the image.
-##  return an integer back
-def GetRadio():
-    rating = 0
-    test = len(radio_list)
-    for i in range(len(radio_list)):
-        if window.FindElement(radio_list[i]).Get() == True:
-            return rating
-        rating = rating + 1
-    return rating
-
-### Fetch the star rating from the image file as an integer
-def PullRating(pathname, filename):
-    global exifDataRaw
-    exifDataRaw = piexif.load(pathname + '\\' + filename)
-    RatingOut = 0
-    #print("this if the rating: ", exifDataRaw.get(Nullth, {}).get(KeyRating))
-    try:
-        if exifDataRaw[Nullth]:
-            try:                
-                ## fetch rating, execptions on if: there, out of bounds, or can't lookup value 
-                RatingOut = exifDataRaw.get(Nullth, {}).get(KeyRating)
-            except IndexError:
-                print("Key Index Error missing Index: ", filename)
-                # RatingOut = 0
-            except KeyError:
-                print("Key Error with KeyRating, No Key: ", filename)
-                # RatingOut = 0
-            except LookupError:
-                print("Lookup Key error with: KeyRating: ", filename)
-                # RatingOut = 0
-            return RatingOut
-    except ValueError:
-        print("Error no", Nullth, "Data:", exifDataRaw)
-        return 0
-    return 0
-
-
 
 #### Layout sets ===============================================
 ##   make these 2 elements outside the layout as we want to "update" them later
@@ -280,7 +74,7 @@ def PullRating(pathname, filename):
 filename = os.path.join(ImagePath, Filenames[0]) 
 
 ## Display emement 
-image_elem = sg.Image(data = get_img_data(filename, first = True))
+image_elem = sg.Image(data = GetImgData(filename, first = True))
 
 ### Image display with text
 ##
@@ -288,19 +82,17 @@ col_image = [[image_elem]]
 # ImageNameText = sg.Text(Filenames[0], size=(30, 1), justification='left',  relief='sunken', auto_size_text=True)
 
 ###     2ND COLUMN
-##      Broken into 4 sub-columns of tags 
-Tags1, Tags2, Tags3, Tags4 = Split_tags(TaggerList)
+##      Broken into N sub-columns of tags currently numsplits
+TagsOverList = SplitTags(TaggerList, numsplits)
+Tcolumns = []
 
-column1 = [[CheckBoxButton(Tags1[i])] for i in range(len(Tags1))]
-column2 = [[CheckBoxButton(Tags2[i])] for i in range(len(Tags2))]
-column3 = [[CheckBoxButton(Tags3[i])] for i in range(len(Tags3))]
-column4 = [[CheckBoxButton(Tags4[i])] for i in range(len(Tags4)-1)]  ## remove <end> from tags
+for sublist in TagsOverList:
+    column = [[sg.Checkbox(tag, key=tag)] for tag in sublist]
+    Tcolumns.append(sg.Column(column))
 
-### Frame for the 4 columns for the Tags
-##
-Tag_List_Frame = [[sg.Frame('Tag List', [[
-    sg.Column(column1), sg.Column(column2),
-    sg.Column(column3), sg.Column(column4) ]], border_width=2) ]]
+Tag_List_Frame = [[sg.Frame('Tag List', [Tcolumns], border_width=2)]]
+
+
 
 ###     3rd COLUMN ####
 ##      Base command buttons for files and tag buttons
@@ -308,7 +100,7 @@ TagButtons = [sg.Button(('Save Image'), size=(10, 2)), sg.Button(('Clear Boxes')
 
 ##      Tag Button section
 ##      Contains the speciallized tags.
-BoxListButtons = [[sg.Button(('Add Tag'), size=(8, 2)), sg.Button(('Clear Tag'), size=(8, 2))], 
+BoxListButtons = [[sg.Button(('Apply Tag'), size=(8, 2)), sg.Button(('Clear Tag'), size=(8, 2))], 
                   [sg.Checkbox(('Special Tag\nSelected'), key='TagSpecial', default=False, size=(12,12))]]
 
 file_num_display_elem = sg.Text('File 1 of {}'.format(num_files),)
@@ -402,7 +194,7 @@ def main():
     HoldList = []
 
 
-    global ImagePath, Filenames, window, values, ProperListNames, Browsed, image_idx, DirHold, num_files
+    global ImagePath, Filenames, window, ProperListNames, Browsed, image_idx, num_files
     NewDirPath = ImagePath  ## set for default
     Browsed = False
 
@@ -414,7 +206,7 @@ def main():
     while Running == True:
         # Interlist = []
         event, values = window.read()
-        Filenames = get_file_list(ImagePath)
+        Filenames = GetFileList(ImagePath)
 
         if event is None:
             ## nothing to do
@@ -424,22 +216,22 @@ def main():
         elif event == 'Go':
             ImagePath = values[0]  # get browse str
             image_idx = 0          # set to 0 for new dir
-            Filenames = get_file_list(ImagePath)
+            Filenames = GetFileList(ImagePath)
             window.Element('listbox').Update(Filenames)
             # window.Element('listbox').Update(file_num_display_elem)
             filename = Filenames[0]
             num_files = len(Filenames)
             Browsed = False
-            ImageTagsClear()
+            ImageTagsClear(window)
 
         elif event == 'BrowseDir':
             ImagePath = values[0]  # get browse str
             image_idx = 0          # set to 0 for new dir
-            Filenames = get_file_list(ImagePath) 
+            Filenames = GetFileList(ImagePath) 
             window.Element('listbox').Update(Filenames)
             NewDirPath = ImagePath
             Browsed = False
-            ImageTagsClear()
+            ImageTagsClear(window)
             
 ### Input events (cursour keys, mouse wheel, and < > buttons)
 ##  
@@ -449,13 +241,13 @@ def main():
             image_idx += 1
             filename = Filenames[image_idx]
             if not Hold:
-                ImageTagsClear()
+                ImageTagsClear(window)
         elif event in ('<', 'MouseWheel:Up',  'Up:38', 'Prior:33') and image_idx >= 1:
             ## if < or change image file then change the image index by subtrcting 1
             image_idx -= 1
             filename = Filenames[image_idx]
             if not Hold:
-                ImageTagsClear()
+                ImageTagsClear(window)
                 
 ### Mouse select for the file list box
         elif event == 'listbox':
@@ -464,7 +256,7 @@ def main():
             image_idx = Filenames.index(imagef)
             filename = Filenames[image_idx]
             if not Hold:
-                ImageTagsClear()
+                ImageTagsClear(window)
 
 
 ### Hold the tages and add them to the tags from the new image
@@ -487,18 +279,17 @@ def main():
             Hold = False
             HoldList = []
             window.Element('TagHold').Update(value=False)
-            ImageTagsClear()
+            ImageTagsClear(window)
 
 
 ### Hold the directory tags and add them for the next directory.
 ##  To allow build a list for many directories
 ##
         elif event == 'DirectoryTag':            
-            window.Element('DirTagsBox').update(PullDirTags(ImagePath))
+            window.Element('DirTagsBox').update(PullDirTags(ImagePath, window, DirTags))
         
 ### Hold to append the directory string      
         elif event == 'HoldDirectoryTag':
-            DirHold = True
             try:
                 window.Element('DirTagHold').Update(value=True)
             except IndexError:
@@ -506,7 +297,6 @@ def main():
 
 ### Release the append hold
         elif event == 'DirectoryTagClear':    
-            DirHold = False   
             try:
                 window.Element('DirTagHold').Update(value=False)
             except IndexError:
@@ -515,8 +305,9 @@ def main():
 
 ### Save file (Update image with new tags)            
         elif event == 'Save Image':
-            PushTags(ImagePath, Filenames[image_idx], ListTag)
-        elif event == 'Add Tag':
+            PushTags(ImagePath, Filenames[image_idx], ListTag, values, window)
+            
+        elif event == 'Apply Tag':
             TupIndex = window['proplist'].get_indexes()
             try:
                 ListTag = SpecialList[TupIndex[0]] + ";"
@@ -537,9 +328,12 @@ def main():
         
 ### ================================================================================================
 ### Update image if needed
-        ShowImageTags(PullTags(ImagePath, Filenames[image_idx]))
+        ShowImageTags(PullTags(ImagePath, Filenames[image_idx]), window)
         ImageName = os.path.join(ImagePath, Filenames[image_idx])
-        image_elem.Update(data=get_img_data(ImageName))
+        image_elem.Update(data=GetImgData(ImageName))
+        
+        ### To fetch teh size info I run the Getdata with only size selected
+        ImgWidth, ImgHeight = GetImgData(ImageName, first = False, ImgSizeOnly = True)
         
         window.Element('upWidth').update(ImgWidth)
         window.Element('upHeight').update(ImgHeight)
