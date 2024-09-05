@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 # This is to help speed up image tagging in creating a push button
 # tagger for my images
@@ -232,6 +233,7 @@ def main():
             NewDirPath = ImagePath
             Browsed = False
             ImageTagsClear(window)
+       
             
 ### Input events (cursour keys, mouse wheel, and < > buttons)
 ##  

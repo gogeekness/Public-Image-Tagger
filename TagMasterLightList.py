@@ -2,10 +2,10 @@
 ##
 
 # A list of strings.  The strings are used at values and labels for the checkboxes
-TaggerList = ["arm","pony","Outdoor","art","two","clamps","two+", "tape",
-            "princess", "saddle", "beast", "computer", "leather","box","blindfold", "maid", "bag",
-            "harness","fuzz","vintage","over_stuff","plug", "machine","cloud", "peach", "nylon"]
+TaggerList = ["mountain","horse","outdoor","art","two","test","two+", "grass",
+            "field", "saddle", "farm", "computer", "barn", "box","water", "maid", "bag",
+            "swimsuit","sunlight","vintage","over_stuff","pool", "machine","cloud", "tree", "nylon"]
 
-SpecialList = ["vet", "Fran", "viking", "benson", "Bishop", "house of Gord", "order", "xxx52", "hitomi",
-               "heather_mechel", "pet-tentacle", "coco", "zelda", "peach", "sneak", "polecat", "self",
-               "potter"]
+SpecialList = ["Slone", "Frank", "Viking", "Enson", "Bison", "Order", "Hitomi",
+               "Sport", "ESPN", "Coco", "Zelda", "Peach", "Sneaks", "Poecat", "Self",
+               "Potter"]
