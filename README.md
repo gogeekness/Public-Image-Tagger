@@ -23,7 +23,6 @@ Requirements:
 File containns default and set variables used in the Tagger program.
 * `ImageSize` is currently set as (640,800)
 * `img_types` set to JGP, JPEG, TIFF
-  * Future plans are to add PNG support
 * `DefaultPath` where the Tagger looks for images, otherwise it asks the user for the starting folder.
 
 ## Main Screen
@@ -98,5 +97,6 @@ This is the main window with 4 sections.
 * AI vision to tag images automaticly
   * Use standalone AI vision model to tag images automaticaly
   * Create a Taglist
+* Adding PNG support
 
 ### Note: Update Window before exiting the application. 
