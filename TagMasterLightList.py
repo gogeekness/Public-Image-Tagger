@@ -9,4 +9,3 @@ TaggerList = ["mountain","horse","outdoor","art","two","test","two+", "grass",
 SpecialList = ["Slone", "Frank", "Viking", "Enson", "Bison", "Order", "Hitomi",
                "Sport", "ESPN", "Coco", "Zelda", "Peach", "Sneaks", "Poecat", "Self",
                "Potter"]
-n 
