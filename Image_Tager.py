@@ -152,16 +152,23 @@ tab1_taglists = [[sg.Text('Main Tab')],
 ###     Tab #1 (Directory Reader)
 tab2_reader = [
         [sg.Text('Reader Tab')],
-        [sg.Text(str('File :' +  filename), size=(80,1), key='ReaderTextTag')],
-        [sg.Text('Tags:', size=(15, 4)),
-        sg.Text(str(PullTags(ImagePath, Filenames[0])), enable_events=True, text_color = 'Black', background_color = 'White', key = 'single_tag_reader', 
-                size=(60, 4), border_width = 2, justification = 'left')],
+        [sg.Text(str('Directoy :' +  ImagePath), size=(80,1), key='ReaderTextTag'),
+        sg.Button(('Tag Directory'), size=(12, 2), key='DirectoryTag'), sg.Button(('Hold Directory Tags'), size=(16, 2), key='HoldDirectoryTag'), 
+        sg.Button(('Clear Directory Directory'), size=(12, 2), key='DirectoryTagClear'), sg.Checkbox(('Tags\nHeld'), key='DirTagHold', default=False, size=(12,12))],
+        [sg.Text('General Tags:', size=(15, 4)), sg.Listbox([ 'test1', 'test2','test3' ], size=(40, 15), select_mode='LISTBOX_SELECT_MODE_MULTIPLE', key='GeneralTagBox' ), 
+            sg.Button(('Invert General Tags'), size=(18, 2), key='GeneralTagInv')],
         [sg.HorizontalSeparator()],
-        [sg.Button(('Tag Directory'), size=(12, 2), key='DirectoryTag'), sg.Button(('Hold Directory Tags'), size=(16, 2), key='HoldDirectoryTag'), 
-         sg.Button(('Clear Directory Directory'), size=(12, 2), key='DirectoryTagClear'), sg.Checkbox(('Tags\nHeld'), key='DirTagHold', default=False, size=(12,12))],
-        [sg.Text('Directory Tags:', size=(15, 4)), 
-         sg.Multiline(str(""), enable_events=True, text_color = 'Black', background_color = 'White', key = 'DirTagsBox', size=(67, 20), border_width = 2, justification = 'left')],
+        [sg.Text('Custom Tags:', size=(15, 4)), sg.Listbox([ 'test1', 'test2','test3' ], size=(40, 15), select_mode='LISTBOX_SELECT_MODE_MULTIPLE', key='CustomTagBox'  ),
+            sg.Button(('Invert Custom Tags'), size=(18, 2), key='CustomTagInv')],
+        # sg.Text(str(PullTags(ImagePath, Filenames[0])), enable_events=True, text_color = 'Black', background_color = 'White', key = 'single_tag_reader', 
+        #         size=(60, 4), border_width = 2, justification = 'left')],
+
+        # [ 
+        # sg.Button(('Clear Directory Directory'), size=(12, 2), key='DirectoryTagClear'), sg.Checkbox(('Tags\nHeld'), key='DirTagHold', default=False, size=(12,12))],
+        # [sg.Text('Directory Tags:', size=(15, 4)), 
+        #  sg.Multiline(str(""), enable_events=True, text_color = 'Black', background_color = 'White', key = 'DirTagsBox', size=(67, 20), border_width = 2, justification = 'left')],
         [sg.Text('Directory Progress :', size=(15, 4)), sg.ProgressBar(100, orientation='h', expand_x=True, size=(60, 10),  key='PBAR')] 
+   
     ]
 
 ### Main layout for Tab-grouping
@@ -173,11 +180,13 @@ tab_group = [[sg.TabGroup([[
     ]]
 
 ###     Tab #2 layout
+ExitColumn = [[sg.Button(('Exit'),size=(16,2))]]
+
 layout = [
     ## Title and top controls bar
     [sg.Text('Image Tagger', size=(30, 1), justification='center', font=("Helvetica", 25), relief=sg.RELIEF_RIDGE), 
      sg.Text('Your Folder', size=(15, 1), justification='right'), sg.InputText(ImagePath), sg.FolderBrowse('BrowseDir'),
-     sg.Button(('Go'), size=(4,1)), sg.Button(('Exit'), size=(16,2))
+     sg.Button(('Refresh Window'), key='Go', size=(20,1)), sg.Column(ExitColumn, element_justification='right', expand_x=True)
      ],
     ## Columns List
     [sg.Column(Image_set), sg.VerticalSeparator(), sg.Column(tab_group), sg.VerticalSeparator(), sg.Column(col_files)]
@@ -288,7 +297,8 @@ def main():
 ##  To allow build a list for many directories
 ##
         elif event == 'DirectoryTag':            
-            window.Element('DirTagsBox').update(PullDirTags(ImagePath, window, DirTags))
+            window.Element('GeneralTagBox').update(PullDirTags(ImagePath, window, DirTags))
+            window.Element('CustomTagBox').update(PullDirTags(ImagePath, window, DirTags))         
         
 ### Hold to append the directory string      
         elif event == 'HoldDirectoryTag':
@@ -333,6 +343,7 @@ def main():
         ShowImageTags(PullTags(ImagePath, Filenames[image_idx]), window)
         ImageName = os.path.join(ImagePath, Filenames[image_idx])
         image_elem.Update(data=GetImgData(ImageName))
+        #filename = ''
         
         ### To fetch teh size info I run the Getdata with only size selected
         ImgWidth, ImgHeight = GetImgData(ImageName, first = False, ImgSizeOnly = True)
@@ -340,12 +351,15 @@ def main():
         window.Element('upWidth').update(ImgWidth)
         window.Element('upHeight').update(ImgHeight)
         window.Element('TextTag').Update(PullTags(ImagePath, Filenames[image_idx]))    
-        window.Element('single_tag_reader').update(PullTags(ImagePath, Filenames[image_idx]))
+        #window.Element('GeneralTagBox').update(PullTags(ImagePath, Filenames[image_idx]))
+        #window.Element('CustomTagBox').update(PullTags(ImagePath, Filenames[image_idx]))
+
         window.Element('DirFileTotal').update(len(Filenames))
         window.Element('FileNumIndex').update(str( image_idx ) + ' of ')
         
         ## Edge case if exiting with out doing anything
         # Is filename defined, then add blank. (The update will show 'blank' on exit)
+
         try:
             window.Element('FileNameLabel').update(filename)
         except UnboundLocalError:

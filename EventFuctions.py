@@ -4,7 +4,7 @@
 # Richard Eseke 2020, 2024
 
 import os, sys, io
-import piexif
+import piexif, struct
 
 from InitVars import ImageSize, radio_list, img_types, ImgHeight, ImgWidth
 
@@ -77,6 +77,9 @@ def PullTags(pathname, filename):
             if KeyValue in exifDataRaw[Nullth]:
                 TagOutput = str(bytes(exifDataRaw[Nullth][KeyValue]).decode('utf_16_le'))#[:-1]
                 return str(TagOutput)
+    except struct.error as err:
+        print("Strut Error on loading ", filename, " Error ", err )
+        return ""
     except ValueError:
         print("Error no", Nullth, "Data:", exifDataRaw)
         print("Dump 0th:", piexif.dump(BlankTag))
